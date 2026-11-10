@@ -27,7 +27,8 @@ async function getMovieGenres(tmdbId) {
         const url = `https://themoviedb.org{tmdbId}?api_key=${API_KEY}&language=tr`;
         const response = await axios.get(url);
         const genreNames = response.data.genres.map(g => g.name);
-        const mainGenre = genreNames[0] || "Diğer";
+        // HATA DÜZELTİLDİ: Dizinin ilk elemanını String olarak alıyoruz, yoksa Diğer yapıyoruz
+        const mainGenre = (genreNames && genreNames.length > 0) ? genreNames[0] : "Diğer";
         return { genres: genreNames, mainGenre };
     } catch (error) { 
         return { genres: ["Diğer"], mainGenre: "Diğer" }; 
@@ -64,7 +65,7 @@ async function fetchFromStreamingAPI() {
         try {
             const url = `https://themoviedb.org{API_KEY}&language=tr&page=${vizyonPage}`;
             const response = await axios.get(url);
-            if (response.data.results.length === 0) break;
+            if (!response.data.results || response.data.results.length === 0) break;
             for (const movie of response.data.results) {
                 const imdbId = await getImdbId(movie.id);
                 if (imdbId) {
@@ -92,7 +93,7 @@ async function fetchFromStreamingAPI() {
             const url = `https://themoviedb.org{API_KEY}&language=tr&sort_by=popularity.desc&primary_release_year=${year}&page=${page}`;
             try {
                 const response = await axios.get(url);
-                if (response.data.results.length === 0) break;
+                if (!response.data.results || response.data.results.length === 0) break;
                 for (const movie of response.data.results) {
                     const imdbId = await getImdbId(movie.id);
                     if (imdbId) {
@@ -137,8 +138,9 @@ function createM3U(movies) {
 
     const moviesByGenre = {};
     for (const movie of uniqueMovies.filter(m => m.year !== "Vizyonda")) {
-        if (!moviesByGenre[movie.mainGenre]) moviesByGenre[movie.mainGenre] = [];
-        moviesByGenre[movie.mainGenre].push(movie);
+        const genre = movie.mainGenre;
+        if (!moviesByGenre[genre]) moviesByGenre[genre] = [];
+        moviesByGenre[genre].push(movie);
     }
 
     for (const genre of Object.keys(moviesByGenre)) {
@@ -150,7 +152,7 @@ function createM3U(movies) {
     }
 
     fs.writeFileSync('filmler/film_arsivi.m3u', m3u, 'utf-8');
-    console.log("💾 M3U Listesi oluşturuldu.");
+    console.log(`💾 M3U Listesi başarıyla oluşturuldu. Toplam: ${uniqueMovies.length} film.`);
 }
 
 (async () => {
