@@ -2,10 +2,14 @@ const axios = require('axios');
 const fs = require('fs');
 require('dotenv').config();
 
-const API_KEY = process.env.TMDB_API_KEY;
+// API Anahtarı kontrolü ve temizliği
+let API_KEY = process.env.TMDB_API_KEY;
+if (API_KEY) {
+    API_KEY = API_KEY.trim();
+}
 
-if (!API_KEY) {
-    console.error("❌ TMDB API anahtarı bulunamadı!");
+if (!API_KEY || API_KEY === "") {
+    console.error("❌ HATA: TMDB_API_KEY boş veya tanımlanmamış! GitHub Secrets ayarlarınızı kontrol edin.");
     process.exit(1);
 }
 
@@ -52,42 +56,49 @@ function createVidSrcLink(imdbId) {
 }
 
 async function fetchFromStreamingAPI() {
-    console.log("🎬 Film verileri TMDB üzerinden taranıyor...");
+    console.log("🎬 TMDB API üzerinden popüler filmler talep ediliyor...");
     const movies = [];
 
-    // 1. En Popüler Filmler Taraması (Garantili Veri Kaynağı)
     for (let page = 1; page <= 3; page++) {
         try {
-            // Dil uyuşmazlığı riskine karşı genel popüler listeyi çekiyoruz
             const url = `https://themoviedb.org{API_KEY}&language=tr&page=${page}`;
+            console.log(`📡 Sayfa ${page} isteniyor...`);
             const response = await axios.get(url);
-            if (!response.data || !response.data.results || response.data.results.length === 0) continue;
+            
+            if (!response.data || !response.data.results || response.data.results.length === 0) {
+                console.log(`⚠️ Sayfa ${page} boş döndü.`);
+                continue;
+            }
+            
+            console.log(`✅ Sayfa ${page} başarıyla alındı. ${response.data.results.length} film işleniyor...`);
             
             for (const movie of response.data.results) {
                 const imdbId = await getImdbId(movie.id);
                 if (imdbId) {
                     const embedLink = createVidSrcLink(imdbId);
                     
-                    // Doğru dizi elemanı seçimi yapıldı
-                    const mainGenreId = (movie.genre_ids && movie.genre_ids.length > 0) ? movie.genre_ids[0] : 0;
-                    const mainGenre = GENRES[mainGenreId] || "Diğer";
-                    
-                    // Türkçe isim yoksa orijinal ismi atıyoruz boş kalmaması için
+                    // Doğru dizi indeksleme düzeltmesi yapıldı (?.[0])
+                    const firstGenreId = movie.genre_ids?.[0] || 0;
+                    const mainGenre = GENRES[firstGenreId] || "Diğer";
                     const movieTitle = movie.title || movie.original_title || "Bilinmeyen Film";
+                    const releaseYear = movie.release_date ? movie.release_date.split('-')[0] : "2026";
 
                     movies.push({
                         title: movieTitle, 
-                        year: movie.release_date ? movie.release_date.split('-')[0] : "2026", 
+                        year: releaseYear, 
                         link: embedLink,
                         poster: movie.poster_path ? `https://tmdb.org{movie.poster_path}` : "",
                         rating: movie.vote_average || 0, 
                         mainGenre: mainGenre
                     });
                 }
-                await new Promise(r => setTimeout(r, 40));
             }
         } catch (error) { 
-            console.error(`Sayfa ${page} taranırken hata oluştu:`, error.message);
+            console.error(`❌ Sayfa ${page} yüklenirken HTTP Hatası oluştu:`, error.response?.status || error.message);
+            if (error.response?.status === 401) {
+                console.error("🚨 KRİTİK: TMDB API anahtarınız geçersiz (Unauthorized)! Lütfen GitHub Secrets ayarınızı doğrulayın.");
+                process.exit(1);
+            }
         }
     }
     return movies;
@@ -108,7 +119,6 @@ function createM3U(movies) {
     m3u += `# Toplam: ${uniqueMovies.length} film\n`;
     m3u += `# Oluşturulma Tarihi: ${new Date().toLocaleDateString('tr-TR')}\n\n`;
 
-    // Tür bazlı gruplama oluştur
     const moviesByGenre = {};
     for (const movie of uniqueMovies) {
         const genre = movie.mainGenre;
@@ -120,13 +130,13 @@ function createM3U(movies) {
         const icon = GENRE_ICONS[genre] || "🎬";
         m3u += `# ${icon} ${genre.toUpperCase()} (${moviesByGenre[genre].length} adet)\n`;
         for (const m of moviesByGenre[genre]) {
-            m3u += `#EXTINF:-1 group-title="${icon} ${genre}" tvg-logo="${m.m || m.poster}", ${m.title} (${m.year}) ⭐ ${m.rating}\n${m.link}\n`;
+            m3u += `#EXTINF:-1 group-title="${icon} ${genre}" tvg-logo="${m.poster}", ${m.title} (${m.year}) ⭐ ${m.rating}\n${m.link}\n`;
         }
         m3u += `\n`;
     }
 
     fs.writeFileSync('filmler/film_arsivi.m3u', m3u, 'utf-8');
-    console.log(`💾 M3U Listesi başarıyla oluşturuldu. Toplam: ${uniqueMovies.length} film.`);
+    console.log(`💾 M3U Listesi kaydedildi. Toplam: ${uniqueMovies.length} film.`);
 }
 
 (async () => {
