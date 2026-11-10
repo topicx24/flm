@@ -2,8 +2,8 @@ name: Günlük M3U Güncelleyici
 
 on:
   schedule:
-    - cron: '0 0 * * *'
-  workflow_dispatch:
+    - cron: '0 0 * * *' # Her gece otomatik çalışır
+  workflow_dispatch: # Manuel tetikleme butonu
 
 jobs:
   build:
@@ -15,6 +15,8 @@ jobs:
     steps:
     - name: Depoyu Klonla
       uses: actions/checkout@v3
+      with:
+        fetch-depth: 0 # Tüm Git geçmişini çekerek çakışmaları önler
 
     - name: Node.js Kurulumu
       uses: actions/setup-node@v3
@@ -29,9 +31,16 @@ jobs:
         TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
       run: npm start
 
-    - name: Değişiklikleri Kaydet ve GitHub'a Yükle
+    - name: Değişiklikleri Zorla GitHub'a Yükle
       run: |
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
+        
+        # Dosyayı Git havuzuna kesin olarak ekle
         git add filmler/film_arsivi.m3u
-        git diff --quiet && git diff --staged --quiet || (git commit -m "🤖 Günlük otomatik M3U güncellemesi" && git push)
+        
+        # Değişiklik kontrolünü devre dışı bırakıp her halükarda commit oluştur
+        git commit -m "🤖 Günlük otomatik M3U güncellemesi: $(date +'%d.%m.%Y %H:%M:%S')" --allow-empty
+        
+        # Çakışmaları ezerek deponun main dalına zorla (force push) yükle
+        git push origin main --force
