@@ -1,12 +1,11 @@
 const axios = require('axios');
 const fs = require('fs');
-require('dotenv').config(); // Yerelde test ederken .env dosyasını okur
+require('dotenv').config();
 
-// API anahtarını GitHub Secrets veya yerel .env dosyasından alır
 const API_KEY = process.env.TMDB_API_KEY;
 
 if (!API_KEY) {
-    console.error("❌ TMDB API anahtarı bulunamadı! Lütfen environment variable ayarlayın.");
+    console.error("❌ TMDB API anahtarı bulunamadı!");
     process.exit(1);
 }
 
@@ -30,20 +29,25 @@ async function getMovieGenres(tmdbId) {
         const genreNames = response.data.genres.map(g => g.name);
         const mainGenre = genreNames[0] || "Diğer";
         return { genres: genreNames, mainGenre };
-    } catch { return { genres: ["Diğer"], mainGenre: "Diğer" }; }
+    } catch (error) { 
+        return { genres: ["Diğer"], mainGenre: "Diğer" }; 
+    }
 }
 
-async function getMovieGenres(tmdbId) {
+async function getImdbId(tmdbId) {
+    if (processedMovies.has(tmdbId)) return null;
     try {
-        const url = `https://themoviedb.org{tmdbId}?api_key=${API_KEY}&language=tr`;
+        const url = `https://themoviedb.org{tmdbId}/external_ids?api_key=${API_KEY}`;
         const response = await axios.get(url);
-        const genreNames = response.data.genres.map(g => g.name);
-        const mainGenre = genreNames[0] || "Diğer"; // HATA DÜZELTİLDİ: genreNames yerine genreNames[0] seçildi
-        return { genres: genreNames, mainGenre };
-    } catch { return { genres: ["Diğer"], mainGenre: "Diğer" }; }
-}
+        const imdbId = response.data.imdb_id;
+        if (imdbId) {
+            processedMovies.add(tmdbId);
+            return imdbId;
+        }
         return null;
-    } catch { return null; }
+    } catch (error) { 
+        return null; 
+    }
 }
 
 function createVidSrcLink(imdbId) {
@@ -75,10 +79,12 @@ async function fetchFromStreamingAPI() {
                 await new Promise(r => setTimeout(r, 50));
             }
             vizyonPage++;
-        } catch { break; }
+        } catch (error) { 
+            break; 
+        }
     }
 
-    // 2. Geçmiş Yılların Popülerleri (Son 3 yıl - Hızlı çalışması için optimize edildi)
+    // 2. Geçmiş Yılların Popülerleri (Son 3 yıl)
     const currentYear = 2026;
     for (let year = currentYear; year >= currentYear - 3; year--) {
         console.log(`📅 ${year} yılı taranıyor...`);
@@ -100,7 +106,9 @@ async function fetchFromStreamingAPI() {
                     }
                     await new Promise(r => setTimeout(r, 50));
                 }
-            } catch { break; }
+            } catch (error) { 
+                break; 
+            }
         }
     }
     return movies;
