@@ -34,8 +34,8 @@ const GENRE_ICONS = {
 async function getImdbId(tmdbId) {
     if (processedMovies.has(tmdbId)) return null;
     try {
-        // URL düzeltildi: movie/ öncesine eksik olan / eklendi
-        const url = `https://themoviedb.org{tmdbId}/external_ids?api_key=${API_KEY}`;
+        // TMDb resmi API domain adresi ve doğru yol eklendi
+        const url = `https://api.themoviedb.org/3/movie/${tmdbId}/external_ids?api_key=${API_KEY}`;
         const response = await axios.get(url);
         return response.data.imdb_id || null;
     } catch (error) { 
@@ -51,8 +51,8 @@ async function fetchFromStreamingAPI() {
         console.log(`📡 TMDB üzerinden '${endpoint}' listesi taranıyor...`);
         for (let page = 1; page <= 3; page++) {
             try {
-                // URL düzeltildi: endpoint öncesine eksik olan / eklendi
-                const url = `https://themoviedb.org{endpoint}?api_key=${API_KEY}&language=tr&page=${page}`;
+                // Doğru TMDb API endpoint yapısı ('movie/') ve şablon dizesi düzeltildi
+                const url = `https://api.themoviedb.org/3/movie/${endpoint}?api_key=${API_KEY}&language=tr&page=${page}`;
                 const response = await axios.get(url);
                 if (!response.data || !response.data.results) continue;
 
@@ -75,8 +75,8 @@ async function fetchFromStreamingAPI() {
                         movies.push({
                             title: movieTitle,
                             year: releaseYear,
-                            link: `https://vidsrc.net{imdbId}`,
-                            poster: movie.poster_path ? `https://tmdb.org{movie.poster_path}` : "",
+                            link: `https://vidsrc.net/embed/movie/${imdbId}`, // Vidsrc gömülü oynatıcı yapısına uygun hale getirildi
+                            poster: movie.poster_path ? `https://image.tmdb.org/t/p/w500${movie.poster_path}` : "", // TMDb görsel sunucu kök dizini eklendi
                             rating: movie.vote_average ? movie.vote_average.toFixed(1) : "0.0",
                             mainGenre: mainGenre
                         });
