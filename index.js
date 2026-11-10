@@ -55,66 +55,39 @@ async function fetchFromStreamingAPI() {
     console.log("🎬 Film verileri TMDB üzerinden taranıyor...");
     const movies = [];
 
-    // 1. Vizyondakiler Taraması
-    let vizyonPage = 1;
-    while (vizyonPage <= 2) {
+    // 1. En Popüler Filmler Taraması (Garantili Veri Kaynağı)
+    for (let page = 1; page <= 3; page++) {
         try {
-            const url = `https://themoviedb.org{API_KEY}&language=tr&page=${vizyonPage}`;
+            // Dil uyuşmazlığı riskine karşı genel popüler listeyi çekiyoruz
+            const url = `https://themoviedb.org{API_KEY}&language=tr&page=${page}`;
             const response = await axios.get(url);
-            if (!response.data.results || response.data.results.length === 0) break;
+            if (!response.data || !response.data.results || response.data.results.length === 0) continue;
             
             for (const movie of response.data.results) {
                 const imdbId = await getImdbId(movie.id);
                 if (imdbId) {
                     const embedLink = createVidSrcLink(imdbId);
                     
-                    // Film objesindeki genre_ids listesinden ilk türü kelime olarak alıyoruz
-                    const firstGenreId = movie.genre_ids && movie.genre_ids[0];
-                    const mainGenre = GENRES[firstGenreId] || "Diğer";
+                    // Doğru dizi elemanı seçimi yapıldı
+                    const mainGenreId = (movie.genre_ids && movie.genre_ids.length > 0) ? movie.genre_ids[0] : 0;
+                    const mainGenre = GENRES[mainGenreId] || "Diğer";
+                    
+                    // Türkçe isim yoksa orijinal ismi atıyoruz boş kalmaması için
+                    const movieTitle = movie.title || movie.original_title || "Bilinmeyen Film";
 
                     movies.push({
-                        title: movie.title, year: "Vizyonda", link: embedLink,
+                        title: movieTitle, 
+                        year: movie.release_date ? movie.release_date.split('-')[0] : "2026", 
+                        link: embedLink,
                         poster: movie.poster_path ? `https://tmdb.org{movie.poster_path}` : "",
-                        rating: movie.vote_average || 0, mainGenre: mainGenre
+                        rating: movie.vote_average || 0, 
+                        mainGenre: mainGenre
                     });
                 }
                 await new Promise(r => setTimeout(r, 40));
             }
-            vizyonPage++;
         } catch (error) { 
-            break; 
-        }
-    }
-
-    // 2. Geçmiş Yılların Popülerleri Taraması (Son 3 yıl)
-    const currentYear = 2026;
-    for (let year = currentYear; year >= currentYear - 3; year--) {
-        console.log(`📅 ${year} yılı taranıyor...`);
-        for (let page = 1; page <= 2; page++) {
-            const url = `https://themoviedb.org{API_KEY}&language=tr&sort_by=popularity.desc&primary_release_year=${year}&page=${page}`;
-            try {
-                const response = await axios.get(url);
-                if (!response.data.results || response.data.results.length === 0) break;
-                
-                for (const movie of response.data.results) {
-                    const imdbId = await getImdbId(movie.id);
-                    if (imdbId) {
-                        const embedLink = createVidSrcLink(imdbId);
-                        
-                        const firstGenreId = movie.genre_ids && movie.genre_ids[0];
-                        const mainGenre = GENRES[firstGenreId] || "Diğer";
-
-                        movies.push({
-                            title: movie.title, year, link: embedLink,
-                            poster: movie.poster_path ? `https://tmdb.org{movie.poster_path}` : "",
-                            rating: movie.vote_average || 0, mainGenre: mainGenre
-                        });
-                    }
-                    await new Promise(r => setTimeout(r, 40));
-                }
-            } catch (error) { 
-                break; 
-            }
+            console.error(`Sayfa ${page} taranırken hata oluştu:`, error.message);
         }
     }
     return movies;
@@ -131,20 +104,13 @@ function createM3U(movies) {
         }
     }
 
-    let m3u = '#EXTM3U\n# Toplam: ' + uniqueMovies.length + ' film\n\n';
-
-    // Vizyondakiler kategorisini oluştur
-    const vizyon = uniqueMovies.filter(m => m.year === "Vizyonda");
-    if (vizyon.length > 0) {
-        m3u += `# 🆕 VİZYONDAKİLER\n`;
-        for (const m of vizyon) {
-            m3u += `#EXTINF:-1 group-title="Vizyondakiler" tvg-logo="${m.poster}", ${m.title} ⭐ ${m.rating}\n${m.link}\n`;
-        }
-    }
+    let m3u = '#EXTM3U\n';
+    m3u += `# Toplam: ${uniqueMovies.length} film\n`;
+    m3u += `# Oluşturulma Tarihi: ${new Date().toLocaleDateString('tr-TR')}\n\n`;
 
     // Tür bazlı gruplama oluştur
     const moviesByGenre = {};
-    for (const movie of uniqueMovies.filter(m => m.year !== "Vizyonda")) {
+    for (const movie of uniqueMovies) {
         const genre = movie.mainGenre;
         if (!moviesByGenre[genre]) moviesByGenre[genre] = [];
         moviesByGenre[genre].push(movie);
@@ -152,10 +118,11 @@ function createM3U(movies) {
 
     for (const genre of Object.keys(moviesByGenre)) {
         const icon = GENRE_ICONS[genre] || "🎬";
-        m3u += `\n# ${icon} ${genre.toUpperCase()}\n`;
+        m3u += `# ${icon} ${genre.toUpperCase()} (${moviesByGenre[genre].length} adet)\n`;
         for (const m of moviesByGenre[genre]) {
-            m3u += `#EXTINF:-1 group-title="${icon} ${genre}" tvg-logo="${m.poster}", ${m.title} (${m.year}) ⭐ ${m.rating}\n${m.link}\n`;
+            m3u += `#EXTINF:-1 group-title="${icon} ${genre}" tvg-logo="${m.m || m.poster}", ${m.title} (${m.year}) ⭐ ${m.rating}\n${m.link}\n`;
         }
+        m3u += `\n`;
     }
 
     fs.writeFileSync('filmler/film_arsivi.m3u', m3u, 'utf-8');
