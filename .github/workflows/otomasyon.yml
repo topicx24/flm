@@ -2,14 +2,13 @@ name: Günlük M3U Güncelleyici
 
 on:
   schedule:
-    - cron: '0 0 * * *' # Her gece otomatik çalışır
-  workflow_dispatch: # Manuel çalıştırma butonunu aktif eder
+    - cron: '0 0 * * *'
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
-    # GitHub Actions'ın depoya dosya yazabilmesi için gerekli izinler
     permissions:
       contents: write
 
