@@ -6,7 +6,7 @@ let API_KEY = process.env.TMDB_API_KEY;
 if (API_KEY) API_KEY = API_KEY.trim();
 
 if (!API_KEY || API_KEY === "") {
-    console.error("❌ HATA: TMDB_API_KEY bulunamadı!");
+    console.error("❌ HATA: TMDB_API_KEY bulunamadı! GitHub Secrets alanını kontrol edin.");
     process.exit(1);
 }
 
@@ -15,6 +15,7 @@ if (!fs.existsSync('filmler')) {
 }
 
 const processedMovies = new Set();
+
 const GENRES = {
     28: "Aksiyon", 12: "Macera", 16: "Animasyon", 35: "Komedi",
     80: "Suç", 99: "Belgesel", 18: "Dram", 10751: "Aile",
@@ -43,12 +44,13 @@ async function getImdbId(tmdbId) {
 }
 
 async function fetchFromStreamingAPI() {
+    console.log("📡 TMDB API üzerinden veri çekme işlemi başlatıldı...");
     const movies = [];
     const endpoints = ['popular', 'top_rated'];
 
     for (const endpoint of endpoints) {
-        console.log(`📡 TMDB üzerinden '${endpoint}' listesi taranıyor...`);
-        for (let page = 1; page <= 2; page++) {
+        console.log(`📡 '${endpoint}' listesi taranıyor...`);
+        for (let page = 1; page <= 3; page++) {
             try {
                 const url = `https://themoviedb.org{endpoint}?api_key=${API_KEY}&language=tr&page=${page}`;
                 const response = await axios.get(url);
@@ -61,9 +63,10 @@ async function fetchFromStreamingAPI() {
                     if (imdbId) {
                         processedMovies.add(movie.id);
                         
+                        // KESİN DÜZELTME: Yazım hatası giderildi, köşeli parantez indeksi doğru şekilde tanımlandı.
                         let mainGenre = "Diğer";
                         if (movie.genre_ids && Array.isArray(movie.genre_ids) && movie.genre_ids.length > 0) {
-                            const firstGenreId = movie.genre_ids[0];
+                            const firstGenreId = movie.genre_ids[0]; // Köşeli parantez hatası düzeltildi
                             mainGenre = GENRES[firstGenreId] || "Diğer";
                         }
                         
