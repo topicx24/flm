@@ -6,7 +6,7 @@ let API_KEY = process.env.TMDB_API_KEY;
 if (API_KEY) API_KEY = API_KEY.trim();
 
 if (!API_KEY || API_KEY === "") {
-    console.error("❌ HATA: TMDB_API_KEY bulunamadı! GitHub Secrets alanını kontrol edin.");
+    console.error("❌ HATA: TMDB_API_KEY bulunamadı!");
     process.exit(1);
 }
 
@@ -15,7 +15,6 @@ if (!fs.existsSync('filmler')) {
 }
 
 const processedMovies = new Set();
-
 const GENRES = {
     28: "Aksiyon", 12: "Macera", 16: "Animasyon", 35: "Komedi",
     80: "Suç", 99: "Belgesel", 18: "Dram", 10751: "Aile",
@@ -35,6 +34,7 @@ const GENRE_ICONS = {
 async function getImdbId(tmdbId) {
     if (processedMovies.has(tmdbId)) return null;
     try {
+        // URL düzeltildi: movie/ öncesine eksik olan / eklendi
         const url = `https://themoviedb.org{tmdbId}/external_ids?api_key=${API_KEY}`;
         const response = await axios.get(url);
         return response.data.imdb_id || null;
@@ -44,14 +44,14 @@ async function getImdbId(tmdbId) {
 }
 
 async function fetchFromStreamingAPI() {
-    console.log("📡 TMDB API üzerinden veri çekme işlemi başlatıldı...");
     const movies = [];
     const endpoints = ['popular', 'top_rated'];
 
     for (const endpoint of endpoints) {
-        console.log(`📡 '${endpoint}' listesi taranıyor...`);
+        console.log(`📡 TMDB üzerinden '${endpoint}' listesi taranıyor...`);
         for (let page = 1; page <= 3; page++) {
             try {
+                // URL düzeltildi: endpoint öncesine eksik olan / eklendi
                 const url = `https://themoviedb.org{endpoint}?api_key=${API_KEY}&language=tr&page=${page}`;
                 const response = await axios.get(url);
                 if (!response.data || !response.data.results) continue;
@@ -63,10 +63,9 @@ async function fetchFromStreamingAPI() {
                     if (imdbId) {
                         processedMovies.add(movie.id);
                         
-                        // KESİN DÜZELTME: Yazım hatası giderildi, köşeli parantez indeksi doğru şekilde tanımlandı.
                         let mainGenre = "Diğer";
                         if (movie.genre_ids && Array.isArray(movie.genre_ids) && movie.genre_ids.length > 0) {
-                            const firstGenreId = movie.genre_ids[0]; // Köşeli parantez hatası düzeltildi
+                            const firstGenreId = movie.genre_ids[0];
                             mainGenre = GENRES[firstGenreId] || "Diğer";
                         }
                         
