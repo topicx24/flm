@@ -62,12 +62,14 @@ async function fetchFromStreamingAPI() {
                         processedMovies.add(movie.id);
                         
                         let mainGenre = "Diğer";
+                        // DÜZELTME: genre_ids dizisinin ilk elemanı [0] indeksi ile alındı
                         if (movie.genre_ids && movie.genre_ids.length > 0) {
                             const genreId = movie.genre_ids[0];
                             mainGenre = GENRES[genreId] || "Diğer";
                         }
                         
                         const movieTitle = movie.title || movie.original_title || "Film";
+                        // DÜZELTME: split('-')[0] yazılarak sadece yıl verisi metin olarak ayrıştırıldı
                         const releaseYear = movie.release_date ? movie.release_date.split('-')[0] : "2026";
 
                         movies.push({
