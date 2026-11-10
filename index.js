@@ -33,16 +33,15 @@ async function getMovieGenres(tmdbId) {
     } catch { return { genres: ["Diğer"], mainGenre: "Diğer" }; }
 }
 
-async function getImdbId(tmdbId) {
-    if (processedMovies.has(tmdbId)) return null;
+async function getMovieGenres(tmdbId) {
     try {
-        const url = `https://themoviedb.org{tmdbId}/external_ids?api_key=${API_KEY}`;
+        const url = `https://themoviedb.org{tmdbId}?api_key=${API_KEY}&language=tr`;
         const response = await axios.get(url);
-        const imdbId = response.data.imdb_id;
-        if (imdbId) {
-            processedMovies.add(tmdbId);
-            return imdbId;
-        }
+        const genreNames = response.data.genres.map(g => g.name);
+        const mainGenre = genreNames[0] || "Diğer"; // HATA DÜZELTİLDİ: genreNames yerine genreNames[0] seçildi
+        return { genres: genreNames, mainGenre };
+    } catch { return { genres: ["Diğer"], mainGenre: "Diğer" }; }
+}
         return null;
     } catch { return null; }
 }
