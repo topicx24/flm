@@ -61,7 +61,6 @@ async function fetchFromStreamingAPI() {
                     if (imdbId) {
                         processedMovies.add(movie.id);
                         
-                        // %100 GÜVENLİ TÜR SEÇİMİ: Hatalı indeksleme riskleri tamamen temizlendi
                         let mainGenre = "Diğer";
                         if (movie.genre_ids && Array.isArray(movie.genre_ids) && movie.genre_ids.length > 0) {
                             const firstGenreId = movie.genre_ids[0];
