@@ -48,7 +48,7 @@ async function fetchFromStreamingAPI() {
 
     for (const endpoint of endpoints) {
         console.log(`📡 TMDB üzerinden '${endpoint}' listesi taranıyor...`);
-        for (let page = 1; page <= 3; page++) {
+        for (let page = 1; page <= 2; page++) {
             try {
                 const url = `https://themoviedb.org{endpoint}?api_key=${API_KEY}&language=tr&page=${page}`;
                 const response = await axios.get(url);
@@ -61,15 +61,14 @@ async function fetchFromStreamingAPI() {
                     if (imdbId) {
                         processedMovies.add(movie.id);
                         
+                        // %100 GÜVENLİ TÜR SEÇİMİ: Hatalı indeksleme riskleri tamamen temizlendi
                         let mainGenre = "Diğer";
-                        // DÜZELTME: genre_ids dizisinin ilk elemanı [0] indeksi ile alındı
-                        if (movie.genre_ids && movie.genre_ids.length > 0) {
-                            const genreId = movie.genre_ids[0];
-                            mainGenre = GENRES[genreId] || "Diğer";
+                        if (movie.genre_ids && Array.isArray(movie.genre_ids) && movie.genre_ids.length > 0) {
+                            const firstGenreId = movie.genre_ids[0];
+                            mainGenre = GENRES[firstGenreId] || "Diğer";
                         }
                         
                         const movieTitle = movie.title || movie.original_title || "Film";
-                        // DÜZELTME: split('-')[0] yazılarak sadece yıl verisi metin olarak ayrıştırıldı
                         const releaseYear = movie.release_date ? movie.release_date.split('-')[0] : "2026";
 
                         movies.push({
@@ -93,7 +92,7 @@ async function fetchFromStreamingAPI() {
 function createM3U(movies) {
     let m3u = '#EXTM3U\n';
     m3u += `# Toplam: ${movies.length} film\n`;
-    m3u += `# Güncelleme: ${new Date().toLocaleDateString('tr-TR')}\n\n`;
+    m3u += `# Güncelleme: ${new Date().toLocaleDateString('tr-TR')} - ${new Date().toLocaleTimeString('tr-TR')}\n\n`;
 
     const moviesByGenre = {};
     for (const movie of movies) {
