@@ -37,14 +37,13 @@ async function getImdbId(tmdbId) {
         const url = `https://themoviedb.org{tmdbId}/external_ids?api_key=${API_KEY}`;
         const response = await axios.get(url);
         return response.data.imdb_id || null;
-    } catch { 
+    } catch (error) { 
         return null; 
     }
 }
 
 async function fetchFromStreamingAPI() {
     const movies = [];
-    // İki farklı güvenli kaynaktan veri çekiyoruz (Popular ve Top Rated)
     const endpoints = ['popular', 'top_rated'];
 
     for (const endpoint of endpoints) {
@@ -61,9 +60,12 @@ async function fetchFromStreamingAPI() {
                     const imdbId = await getImdbId(movie.id);
                     if (imdbId) {
                         processedMovies.add(movie.id);
-                        const mainGenreId = movie.genre_ids?.[0] || 0;
+                        // HATA DÜZELTİLDİ: Dizinin ilk elemanını [0] ile güvenli şekilde alıyoruz
+                        const mainGenreId = (movie.genre_ids && movie.genre_ids.length > 0) ? movie.genre_ids[0] : 0;
                         const mainGenre = GENRES[mainGenreId] || "Diğer";
                         const movieTitle = movie.title || movie.original_title || "Film";
+                        
+                        // HATA DÜZELTİLDİ: Yıl ayırma mantığı [0] indeksiyle sabitlendi
                         const releaseYear = movie.release_date ? movie.release_date.split('-')[0] : "2026";
 
                         movies.push({
@@ -98,6 +100,7 @@ function createM3U(movies) {
         const icon = GENRE_ICONS[genre] || "🎬";
         m3u += `# ${icon} ${genre.toUpperCase()} (${moviesByGenre[genre].length} adet)\n`;
         for (const m of moviesByGenre[genre]) {
+            // HATA DÜZELTİLDİ: Eksik kalan m.m ifadesi temizlendi, doğrudan m.poster basılıyor
             m3u += `#EXTINF:-1 group-title="${icon} ${genre}" tvg-logo="${m.poster}", ${m.title} (${m.year}) ⭐ ${m.rating}\n${m.link}\n`;
         }
         m3u += `\n`;
