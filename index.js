@@ -14,26 +14,22 @@ if (!fs.existsSync('filmler')) {
 }
 
 const processedMovies = new Set();
+
+const GENRES = {
+    28: "Aksiyon", 12: "Macera", 16: "Animasyon", 35: "Komedi",
+    80: "Suç", 99: "Belgesel", 18: "Dram", 10751: "Aile",
+    14: "Fantastik", 36: "Tarih", 27: "Korku", 10402: "Müzik",
+    9648: "Gizem", 10749: "Romantik", 878: "Bilim Kurgu",
+    53: "Gerilim", 10752: "Savaş", 37: "Western"
+};
+
 const GENRE_ICONS = {
     "Aksiyon": "💥", "Komedi": "😂", "Dram": "🎭", "Korku": "👻",
     "Bilim Kurgu": "🚀", "Romantik": "💕", "Macera": "🗺️", "Suç": "🔫",
     "Gerilim": "🔪", "Animasyon": "🐭", "Aile": "👨‍👩‍👧", "Fantastik": "🧙",
     "Tarih": "📜", "Savaş": "⚔️", "Gizem": "🔍", "Müzik": "🎵",
-    "Western": "🤠", "Belgesel": "🎥"
+    "Western": "🤠", "Belgesel": "🎥", "Diğer": "🎬"
 };
-
-async function getMovieGenres(tmdbId) {
-    try {
-        const url = `https://themoviedb.org{tmdbId}?api_key=${API_KEY}&language=tr`;
-        const response = await axios.get(url);
-        const genreNames = response.data.genres.map(g => g.name);
-        // HATA DÜZELTİLDİ: Dizinin ilk elemanını String olarak alıyoruz, yoksa Diğer yapıyoruz
-        const mainGenre = (genreNames && genreNames.length > 0) ? genreNames[0] : "Diğer";
-        return { genres: genreNames, mainGenre };
-    } catch (error) { 
-        return { genres: ["Diğer"], mainGenre: "Diğer" }; 
-    }
-}
 
 async function getImdbId(tmdbId) {
     if (processedMovies.has(tmdbId)) return null;
@@ -59,25 +55,30 @@ async function fetchFromStreamingAPI() {
     console.log("🎬 Film verileri TMDB üzerinden taranıyor...");
     const movies = [];
 
-    // 1. Vizyondakiler
+    // 1. Vizyondakiler Taraması
     let vizyonPage = 1;
     while (vizyonPage <= 2) {
         try {
             const url = `https://themoviedb.org{API_KEY}&language=tr&page=${vizyonPage}`;
             const response = await axios.get(url);
             if (!response.data.results || response.data.results.length === 0) break;
+            
             for (const movie of response.data.results) {
                 const imdbId = await getImdbId(movie.id);
                 if (imdbId) {
                     const embedLink = createVidSrcLink(imdbId);
-                    const genreInfo = await getMovieGenres(movie.id);
+                    
+                    // Film objesindeki genre_ids listesinden ilk türü kelime olarak alıyoruz
+                    const firstGenreId = movie.genre_ids && movie.genre_ids[0];
+                    const mainGenre = GENRES[firstGenreId] || "Diğer";
+
                     movies.push({
                         title: movie.title, year: "Vizyonda", link: embedLink,
                         poster: movie.poster_path ? `https://tmdb.org{movie.poster_path}` : "",
-                        rating: movie.vote_average || 0, mainGenre: genreInfo.mainGenre
+                        rating: movie.vote_average || 0, mainGenre: mainGenre
                     });
                 }
-                await new Promise(r => setTimeout(r, 50));
+                await new Promise(r => setTimeout(r, 40));
             }
             vizyonPage++;
         } catch (error) { 
@@ -85,7 +86,7 @@ async function fetchFromStreamingAPI() {
         }
     }
 
-    // 2. Geçmiş Yılların Popülerleri (Son 3 yıl)
+    // 2. Geçmiş Yılların Popülerleri Taraması (Son 3 yıl)
     const currentYear = 2026;
     for (let year = currentYear; year >= currentYear - 3; year--) {
         console.log(`📅 ${year} yılı taranıyor...`);
@@ -94,18 +95,22 @@ async function fetchFromStreamingAPI() {
             try {
                 const response = await axios.get(url);
                 if (!response.data.results || response.data.results.length === 0) break;
+                
                 for (const movie of response.data.results) {
                     const imdbId = await getImdbId(movie.id);
                     if (imdbId) {
                         const embedLink = createVidSrcLink(imdbId);
-                        const genreInfo = await getMovieGenres(movie.id);
+                        
+                        const firstGenreId = movie.genre_ids && movie.genre_ids[0];
+                        const mainGenre = GENRES[firstGenreId] || "Diğer";
+
                         movies.push({
                             title: movie.title, year, link: embedLink,
                             poster: movie.poster_path ? `https://tmdb.org{movie.poster_path}` : "",
-                            rating: movie.vote_average || 0, mainGenre: genreInfo.mainGenre
+                            rating: movie.vote_average || 0, mainGenre: mainGenre
                         });
                     }
-                    await new Promise(r => setTimeout(r, 50));
+                    await new Promise(r => setTimeout(r, 40));
                 }
             } catch (error) { 
                 break; 
@@ -128,6 +133,7 @@ function createM3U(movies) {
 
     let m3u = '#EXTM3U\n# Toplam: ' + uniqueMovies.length + ' film\n\n';
 
+    // Vizyondakiler kategorisini oluştur
     const vizyon = uniqueMovies.filter(m => m.year === "Vizyonda");
     if (vizyon.length > 0) {
         m3u += `# 🆕 VİZYONDAKİLER\n`;
@@ -136,6 +142,7 @@ function createM3U(movies) {
         }
     }
 
+    // Tür bazlı gruplama oluştur
     const moviesByGenre = {};
     for (const movie of uniqueMovies.filter(m => m.year !== "Vizyonda")) {
         const genre = movie.mainGenre;
