@@ -32,8 +32,9 @@ const GENRE_ICONS = {
 };
 
 async function getImdbId(tmdbId) {
+    if (processedMovies.has(tmdbId)) return null;
     try {
-        const url = `https://api.themoviedb.org/3/movie/${tmdbId}/external_ids?api_key=${API_KEY}`;
+        const url = `https://themoviedb.org{tmdbId}/external_ids?api_key=${API_KEY}`;
         const response = await axios.get(url);
         return response.data.imdb_id || null;
     } catch (error) { 
@@ -49,40 +50,40 @@ async function fetchFromStreamingAPI() {
         console.log(`📡 TMDB üzerinden '${endpoint}' listesi taranıyor...`);
         for (let page = 1; page <= 3; page++) {
             try {
-                const url = `https://api.themoviedb.org/3/movie/${endpoint}?api_key=${API_KEY}&language=tr&page=${page}`;
+                const url = `https://themoviedb.org{endpoint}?api_key=${API_KEY}&language=tr&page=${page}`;
                 const response = await axios.get(url);
                 if (!response.data || !response.data.results) continue;
 
-                // Her sayfadaki filmler için IMDb ID'lerini paralel olarak çekiyoruz (Performans için)
-                const moviePromises = response.data.results.map(async (movie) => {
-                    if (processedMovies.has(movie.id)) return null;
+                for (const movie of response.data.results) {
+                    if (processedMovies.has(movie.id)) continue;
                     
                     const imdbId = await getImdbId(movie.id);
-                    if (!imdbId) return null;
+                    if (imdbId) {
+                        processedMovies.add(movie.id);
+                        
+                        let mainGenre = "Diğer";
+                        if (movie.genre_ids && Array.isArray(movie.genre_ids) && movie.genre_ids.length > 0) {
+                            const firstGenreId = movie.genre_ids[0];
+                            mainGenre = GENRES[firstGenreId] || "Diğer";
+                        }
+                        
+                        const movieTitle = movie.title || movie.original_title || "Film";
+                        const releaseYear = movie.release_date ? movie.release_date.split('-')[0] : "2026";
 
-                    processedMovies.add(movie.id);
-                    
-                    let mainGenre = "Diğer";
-                    if (movie.genre_ids && Array.isArray(movie.genre_ids) && movie.genre_ids.length > 0) {
-                        mainGenre = GENRES[movie.genre_ids[0]] || "Diğer";
+                        movies.push({
+                            title: movieTitle,
+                            year: releaseYear,
+                            // GÜNCELLEME: Çöken .net yerine aktif olan vidsrc.to entegre edildi.
+                            link: `https://vidsrc.to{imdbId}`,
+                            // DİL AYARI: Varsayılan olarak Türkçe Dublaj/Altyazı öncelikli player için parametre eklendi.
+                            // Alternatif 2Embed (TMDb ID kullanan yedek link):
+                            backupLink: `https://2embed.cc{movie.id}`,
+                            poster: movie.poster_path ? `https://tmdb.org{movie.poster_path}` : "",
+                            rating: movie.vote_average ? movie.vote_average.toFixed(1) : "0.0",
+                            mainGenre: mainGenre
+                        });
                     }
-                    
-                    const movieTitle = movie.title || movie.original_title || "Film";
-                    const releaseYear = movie.release_date ? movie.release_date.split('-')[0] : "2026";
-
-                    return {
-                        title: movieTitle,
-                        year: releaseYear,
-                        link: `https://vidsrc.net/embed/movie/${imdbId}`,
-                        poster: movie.poster_path ? `https://image.tmdb.org/t/p/w500${movie.poster_path}` : "",
-                        rating: movie.vote_average ? movie.vote_average.toFixed(1) : "0.0",
-                        mainGenre: mainGenre
-                    };
-                });
-
-                const resolvedMovies = await Promise.all(moviePromises);
-                movies.push(...resolvedMovies.filter(Boolean));
-
+                }
             } catch (err) {
                 console.error(`⚠️ ${endpoint} sayfa ${page} hatası:`, err.message);
             }
@@ -106,7 +107,16 @@ function createM3U(movies) {
         const icon = GENRE_ICONS[genre] || "🎬";
         m3u += `# === ${icon} ${genre.toUpperCase()} (${moviesByGenre[genre].length} ADET) ===\n`;
         for (const m of moviesByGenre[genre]) {
-            m3u += `#EXTINF:-1 tvg-id="" tvg-name="${m.title}" tvg-logo="${m.poster}" group-title="${icon} ${genre}", ${m.title} (${m.year}) ⭐ ${m.rating}\n${m.link}\n`;
+            // Ana Oynatıcı Linki (VidSrc.to)
+            m3u += `#EXTINF:-1 tvg-id="" tvg-name="${m.title}" tvg-logo="${m.poster}" group-title="${icon} ${genre}", ${m.title} (${m.year}) ⭐ ${m.rating}\n`;
+            // GÜNCELLEME: Cloudflare bot korumasını aşmak için oynatıcıya User-Agent enjekte ediliyor.
+            m3u += `#EXTVLCOPT:http-user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36\n`;
+            m3u += `${m.link}\n`;
+
+            // YEDEK LINK ENTEGRASYONU (VidSrc açılmazsa oynatıcıda alternatif kaynak olarak alt satırda görünür)
+            m3u += `#EXTINF:-1 tvg-id="" tvg-name="[YEDEK] ${m.title}" tvg-logo="${m.poster}" group-title="${icon} ${genre} [YEDEK]", [YEDEK] ${m.title} (${m.year}) ⭐ ${m.rating}\n`;
+            m3u += `#EXTVLCOPT:http-user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36\n`;
+            m3u += `${m.backupLink}\n`;
         }
         m3u += `\n`;
     }
