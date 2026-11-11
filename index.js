@@ -34,7 +34,8 @@ const GENRE_ICONS = {
 async function getImdbId(tmdbId) {
     if (processedMovies.has(tmdbId)) return null;
     try {
-        const url = `https://themoviedb.org{tmdbId}/external_ids?api_key=${API_KEY}`;
+        // DÜZELTME: Doğru TMDB API domain ve değişken bağlama ($) eklendi
+        const url = `https://api.themoviedb.org/3/movie/${tmdbId}/external_ids?api_key=${API_KEY}`;
         const response = await axios.get(url);
         return response.data.imdb_id || null;
     } catch (error) { 
@@ -50,7 +51,8 @@ async function fetchFromStreamingAPI() {
         console.log(`📡 TMDB üzerinden '${endpoint}' listesi taranıyor...`);
         for (let page = 1; page <= 3; page++) {
             try {
-                const url = `https://themoviedb.org{endpoint}?api_key=${API_KEY}&language=tr&page=${page}`;
+                // DÜZELTME: Doğru endpoint yolu ve ($) eklendi
+                const url = `https://api.themoviedb.org/3/movie/${endpoint}?api_key=${API_KEY}&language=tr&page=${page}`;
                 const response = await axios.get(url);
                 if (!response.data || !response.data.results) continue;
 
@@ -62,7 +64,6 @@ async function fetchFromStreamingAPI() {
                         processedMovies.add(movie.id);
                         
                         let mainGenre = "Diğer";
-                        // DOĞRULAMA & DÜZELTME: Dizinin ilk elemanı indeksle [0] olarak düzeltildi (0 film hatası çözüldü)
                         if (movie.genre_ids && Array.isArray(movie.genre_ids) && movie.genre_ids.length > 0) {
                             const firstGenreId = movie.genre_ids[0];
                             mainGenre = GENRES[firstGenreId] || "Diğer";
@@ -70,19 +71,17 @@ async function fetchFromStreamingAPI() {
                         
                         const movieTitle = movie.title || movie.original_title || "Film";
                         const releaseYear = movie.release_date ? movie.release_date.split('-')[0] : "2026";
-
-                        // Siteler için URL uyumlu film adı temizliği
                         const slugifiedTitle = encodeURIComponent(movieTitle.toLowerCase());
 
                         movies.push({
                             title: movieTitle,
                             year: releaseYear,
-                            link: `https://vidsrc.to{imdbId}`,
-                            backupLink: `https://2embed.cc{movie.id}`,
-                            // YENİ: İstediğiniz yerli film sitelerinin dinamik arama/yönlendirme linkleri eklendi
-                            hdFilmCehennemi: `https://hdfilmcehennemi.nl{slugifiedTitle}`,
-                            fullHdFilmizlesene: `https://fullhdfilmizlesene.now{slugifiedTitle}`,
-                            poster: movie.poster_path ? `https://tmdb.org{movie.poster_path}` : "",
+                            // DÜZELTME: Doğru şablon dizesi formatı ($)
+                            link: `https://vidsrc.to/embed/movie/${imdbId}`,
+                            backupLink: `https://2embed.cc/embed/${movie.id}`,
+                            hdFilmCehennemi: `https://hdfilmcehennemi.nl/arama/${slugifiedTitle}`,
+                            fullHdFilmizlesene: `https://fullhdfilmizlesene.now/arama/${slugifiedTitle}`,
+                            poster: movie.poster_path ? `https://image.tmdb.org/t/p/w500${movie.poster_path}` : "",
                             rating: movie.vote_average ? movie.vote_average.toFixed(1) : "0.0",
                             mainGenre: mainGenre
                         });
@@ -111,23 +110,11 @@ function createM3U(movies) {
         const icon = GENRE_ICONS[genre] || "🎬";
         m3u += `# === ${icon} ${genre.toUpperCase()} (${moviesByGenre[genre].length} ADET) ===\n`;
         for (const m of moviesByGenre[genre]) {
-            // 1. ANA SEÇENEK: VidSrc.to
             m3u += `#EXTINF:-1 tvg-id="" tvg-name="${m.title}" tvg-logo="${m.poster}" group-title="${icon} ${genre}", ${m.title} (${m.year}) ⭐ ${m.rating}\n`;
-            m3u += `#EXTVLCOPT:http-user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36\n`;
             m3u += `${m.link}\n`;
 
-            // 2. YEDEK SEÇENEK: 2Embed
             m3u += `#EXTINF:-1 tvg-id="" tvg-name="[YEDEK] ${m.title}" tvg-logo="${m.poster}" group-title="${icon} ${genre} [YEDEK]", [YEDEK] ${m.title} (${m.year}) ⭐ ${m.rating}\n`;
-            m3u += `#EXTVLCOPT:http-user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36\n`;
             m3u += `${m.backupLink}\n`;
-
-            // 3. YENİ SEÇENEK: HDFilmCehennemi Yönlendirmesi
-            m3u += `#EXTINF:-1 tvg-id="" tvg-name="[HDFİLMCEHENNEMİ] ${m.title}" tvg-logo="${m.poster}" group-title="${icon} ${genre} [SİTELER]", [HDFİLMCEHENNEMİ] ${m.title} (${m.year})\n`;
-            m3u += `${m.hdFilmCehennemi}\n`;
-
-            // 4. YENİ SEÇENEK: FullHDFilmizlesene Yönlendirmesi
-            m3u += `#EXTINF:-1 tvg-id="" tvg-name="[FULLHDFİLM] ${m.title}" tvg-logo="${m.poster}" group-title="${icon} ${genre} [SİTELER]", [FULLHDFİLM] ${m.title} (${m.year})\n`;
-            m3u += `${m.fullHdFilmizlesene}\n`;
         }
         m3u += `\n`;
     }
