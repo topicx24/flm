@@ -77,7 +77,7 @@ async function fetchFromStreamingAPI() {
                             title: movieTitle,
                             year: releaseYear,
                             // DÜZELTME: Doğru şablon dizesi formatı ($)
-                            link: createVsLink(imdbId),
+                            link: `https://vidsrc.net/embed/movie/${imdbId}`,
                             backupLink: `https://2embed.cc/embed/${movie.id}`,
                             hdFilmCehennemi: `https://hdfilmcehennemi.nl/arama/${slugifiedTitle}`,
                             fullHdFilmizlesene: `https://fullhdfilmizlesene.now/arama/${slugifiedTitle}`,
