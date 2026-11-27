@@ -55,7 +55,7 @@ async function getMovieDetails(tmdbId) {
 
 // Oynatılabilir / yönlendirici stream bağlantısı oluşturur
 function createStreamUrl(imdbId) {
-    return `http://ha.vixolity.com/vs/${imdbId}/`;
+    return `https://vixolity.com{imdbId}/`;
 }
 
 async function fetchMoviesByYearRange(startYear = 2026, endYear = 2015, maxPagesPerYear = 5) {
@@ -138,6 +138,8 @@ function generateM3U(movies) {
         m3u += `# === ${icon} ${genre.toUpperCase()} (${list.length} ADET) ===\n`;
         for (const m of list) {
             m3u += `#EXTINF:-1 tvg-name="${m.title}" tvg-logo="${m.poster}" group-title="${icon} ${genre}", ${m.title} (${m.year}) ⭐ ${m.rating}\n`;
+            m3u += `#EXTVLCOPT:http-user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36\n`;
+            m3u += `#EXTVLCOPT:http-referrer=https://vixolity.com\n`;
             m3u += `${m.link}\n`;
         }
         m3u += `\n`;
